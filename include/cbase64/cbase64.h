@@ -46,6 +46,8 @@ typedef struct
 void base64_init_encodestate(base64_encodestate* state_in);
 void base64_init_decodestate(base64_decodestate* state_in);
 
+unsigned int cbase64_calc_encoded_length(unsigned int length_in);
+unsigned int cbase64_calc_decoded_length(const char* code_in, unsigned int length_in);
 
 int base64_encode_block(const char* plaintext_in, int length_in, char* code_out, base64_encodestate* state_in);
 int base64_decode_block(const char* code_in, const int length_in, char* plaintext_out, base64_decodestate* state_in);
@@ -70,6 +72,22 @@ void base64_init_decodestate(base64_decodestate* state_in)
 {
     state_in->step = step_a;
     state_in->plainchar = 0;
+}
+
+unsigned int cbase64_calc_encoded_length(unsigned int length_in)
+{
+    return 4 * (length_in / 3) + ((length_in % 3 != 0) ? 4 : 0);
+}
+
+unsigned int cbase64_calc_decoded_length(const char* code_in, unsigned int length_in)
+{
+    if (length_in == 0 || ((length_in & 3) != 0))
+    {
+        return 0;
+    }
+    const char secondlast = code_in[length_in - 2];
+    const char last = code_in[length_in - 1];
+    return 3 * (length_in / 4) - (secondlast == '=') - (last == '=');
 }
 
 char base64_encode_value(char value_in)
