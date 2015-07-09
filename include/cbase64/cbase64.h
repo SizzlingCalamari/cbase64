@@ -23,23 +23,18 @@ extern "C" {
 
 typedef enum
 {
-    step_A, step_B, step_C
-} cbase64_encodestep;
+    step_A, step_B, step_C, step_D
+} cbase64_step;
 
 typedef struct
 {
-    cbase64_encodestep step;
+    cbase64_step step;
     unsigned char result;
 } cbase64_encodestate;
 
-typedef enum
-{
-    step_a, step_b, step_c, step_d
-} cbase64_decodestep;
-
 typedef struct
 {
-    cbase64_decodestep step;
+    cbase64_step step;
     char result;
 } cbase64_decodestate;
 
@@ -88,7 +83,7 @@ void cbase64_init_encodestate(cbase64_encodestate* state_in)
 
 void cbase64_init_decodestate(cbase64_decodestate* state_in)
 {
-    state_in->step = step_a;
+    state_in->step = step_A;
     state_in->result = '\0';
 }
 
@@ -175,22 +170,22 @@ unsigned int cbase64_decode_block(const char* code_in, unsigned int length_in,
     {
         while (1)
         {
-    case step_a:
+    case step_A:
             do {
                 if (codechar == codeend)
                 {
-                    state_in->step = step_a;
+                    state_in->step = step_A;
                     state_in->result = *datachar;
                     return datachar - data_out;
                 }
                 fragment = cbase64__decode_value(*codechar++);
             } while (fragment < 0);
             *datachar    = (fragment & 0x03f) << 2;
-    case step_b:
+    case step_B:
             do {
                 if (codechar == codeend)
                 {
-                    state_in->step = step_b;
+                    state_in->step = step_B;
                     state_in->result = *datachar;
                     return datachar - data_out;
                 }
@@ -198,11 +193,11 @@ unsigned int cbase64_decode_block(const char* code_in, unsigned int length_in,
             } while (fragment < 0);
             *datachar++ |= (fragment & 0x030) >> 4;
             *datachar    = (fragment & 0x00f) << 4;
-    case step_c:
+    case step_C:
             do {
                 if (codechar == codeend)
                 {
-                    state_in->step = step_c;
+                    state_in->step = step_C;
                     state_in->result = *datachar;
                     return datachar - data_out;
                 }
@@ -210,11 +205,11 @@ unsigned int cbase64_decode_block(const char* code_in, unsigned int length_in,
             } while (fragment < 0);
             *datachar++ |= (fragment & 0x03c) >> 2;
             *datachar    = (fragment & 0x003) << 6;
-    case step_d:
+    case step_D:
             do {
                 if (codechar == codeend)
                 {
-                    state_in->step = step_d;
+                    state_in->step = step_D;
                     state_in->result = *datachar;
                     return datachar - data_out;
                 }
