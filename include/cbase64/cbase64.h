@@ -29,7 +29,7 @@ typedef enum
 typedef struct
 {
     cbase64_encodestep step;
-    char result;
+    unsigned char result;
 } cbase64_encodestate;
 
 typedef enum
@@ -40,7 +40,7 @@ typedef enum
 typedef struct
 {
     cbase64_decodestep step;
-    char plainchar;
+    char result;
 } cbase64_decodestate;
 
 void cbase64_init_encodestate(cbase64_encodestate* state_in);
@@ -49,10 +49,13 @@ void cbase64_init_decodestate(cbase64_decodestate* state_in);
 unsigned int cbase64_calc_encoded_length(unsigned int length_in);
 unsigned int cbase64_calc_decoded_length(const char* code_in, unsigned int length_in);
 
-int cbase64_encode_block(const char* plaintext_in, int length_in, char* code_out, cbase64_encodestate* state_in);
-int cbase64_decode_block(const char* code_in, const int length_in, char* plaintext_out, cbase64_decodestate* state_in);
+unsigned int cbase64_encode_block(const unsigned char* data_in, unsigned int length_in,
+                                  char* code_out, cbase64_encodestate* state_in);
 
-int cbase64_encode_blockend(char* code_out, cbase64_encodestate* state_in);
+unsigned int cbase64_decode_block(const char* code_in, unsigned int length_in,
+                                  unsigned char* data_out, cbase64_decodestate* state_in);
+
+unsigned int cbase64_encode_blockend(char* code_out, cbase64_encodestate* state_in);
 
 #ifdef __cplusplus
 }
@@ -62,14 +65,13 @@ int cbase64_encode_blockend(char* code_out, cbase64_encodestate* state_in);
 
 #ifdef CBASE64_IMPLEMENTATION
 
-char cbase64__encode_value(char value_in)
+char cbase64__encode_value(unsigned char value_in)
 {
     static const char* encoding = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    if (value_in > 63) return '=';
     return encoding[(int)value_in];
 }
 
-int cbase64__decode_value(char value_in)
+char cbase64__decode_value(char value_in)
 {
     static const char decoding[] = {62,-1,-1,-1,63,52,53,54,55,56,57,58,59,60,61,-1,-1,-1,-2,-1,-1,-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,-1,-1,-1,-1,-1,-1,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51};
     static const char decoding_size = sizeof(decoding);
@@ -106,50 +108,49 @@ unsigned int cbase64_calc_decoded_length(const char* code_in, unsigned int lengt
     return 3 * (length_in / 4) - (secondlast == '=') - (last == '=');
 }
 
-int cbase64_encode_block(const char* plaintext_in, int length_in, char* code_out, cbase64_encodestate* state_in)
+unsigned int cbase64_encode_block(const unsigned char* data_in, unsigned int length_in,
+                                  char* code_out, cbase64_encodestate* state_in)
 {
-    const char* plainchar = plaintext_in;
-    const char* const plaintextend = plaintext_in + length_in;
+    const unsigned char* datachar = data_in;
+    const unsigned char* const datatextend = data_in + length_in;
     char* codechar = code_out;
-    char result;
-    char fragment;
-    
-    result = state_in->result;
-    
+    unsigned char result = state_in->result;
+    unsigned char fragment;
+
     switch (state_in->step)
     {
         while (1)
         {
     case step_A:
-            if (plainchar == plaintextend)
+            if (datachar == datatextend)
             {
-                state_in->result = result;
                 state_in->step = step_A;
+                state_in->result = result;
                 return codechar - code_out;
             }
-            fragment = *plainchar++;
+            fragment = *datachar++;
             result = (fragment & 0x0fc) >> 2;
             *codechar++ = cbase64__encode_value(result);
             result = (fragment & 0x003) << 4;
     case step_B:
-            if (plainchar == plaintextend)
+            if (datachar == datatextend)
             {
-                state_in->result = result;
                 state_in->step = step_B;
+                state_in->result = result;
                 return codechar - code_out;
             }
-            fragment = *plainchar++;
+            fragment = *datachar++;
             result |= (fragment & 0x0f0) >> 4;
             *codechar++ = cbase64__encode_value(result);
             result = (fragment & 0x00f) << 2;
     case step_C:
-            if (plainchar == plaintextend)
+            if (datachar == datatextend)
             {
-                state_in->result = result;
                 state_in->step = step_C;
+                state_in->result = result;
                 return codechar - code_out;
             }
-            fragment = *plainchar++;
+            fragment = *datachar++;
             result |= (fragment & 0x0c0) >> 6;
             *codechar++ = cbase64__encode_value(result);
             result  = (fragment & 0x03f) >> 0;
@@ -160,14 +161,15 @@ int cbase64_encode_block(const char* plaintext_in, int length_in, char* code_out
     return codechar - code_out;
 }
 
-int cbase64_decode_block(const char* code_in, const int length_in, char* plaintext_out, cbase64_decodestate* state_in)
+unsigned int cbase64_decode_block(const char* code_in, unsigned int length_in,
+                                  unsigned char* data_out, cbase64_decodestate* state_in)
 {
     const char* codechar = code_in;
-    char* plainchar = plaintext_out;
     const char* const codeend = code_in + length_in;
+    unsigned char* datachar = data_out;
     char fragment;
     
-    *plainchar = state_in->plainchar;
+    *datachar = state_in->result;
     
     switch (state_in->step)
     {
@@ -178,54 +180,54 @@ int cbase64_decode_block(const char* code_in, const int length_in, char* plainte
                 if (codechar == codeend)
                 {
                     state_in->step = step_a;
-                    state_in->plainchar = *plainchar;
-                    return plainchar - plaintext_out;
+                    state_in->result = *datachar;
+                    return datachar - data_out;
                 }
-                fragment = (char)cbase64__decode_value(*codechar++);
+                fragment = cbase64__decode_value(*codechar++);
             } while (fragment < 0);
-            *plainchar    = (fragment & 0x03f) << 2;
+            *datachar    = (fragment & 0x03f) << 2;
     case step_b:
             do {
                 if (codechar == codeend)
                 {
                     state_in->step = step_b;
-                    state_in->plainchar = *plainchar;
-                    return plainchar - plaintext_out;
+                    state_in->result = *datachar;
+                    return datachar - data_out;
                 }
-                fragment = (char)cbase64__decode_value(*codechar++);
+                fragment = cbase64__decode_value(*codechar++);
             } while (fragment < 0);
-            *plainchar++ |= (fragment & 0x030) >> 4;
-            *plainchar    = (fragment & 0x00f) << 4;
+            *datachar++ |= (fragment & 0x030) >> 4;
+            *datachar    = (fragment & 0x00f) << 4;
     case step_c:
             do {
                 if (codechar == codeend)
                 {
                     state_in->step = step_c;
-                    state_in->plainchar = *plainchar;
-                    return plainchar - plaintext_out;
+                    state_in->result = *datachar;
+                    return datachar - data_out;
                 }
-                fragment = (char)cbase64__decode_value(*codechar++);
+                fragment = cbase64__decode_value(*codechar++);
             } while (fragment < 0);
-            *plainchar++ |= (fragment & 0x03c) >> 2;
-            *plainchar    = (fragment & 0x003) << 6;
+            *datachar++ |= (fragment & 0x03c) >> 2;
+            *datachar    = (fragment & 0x003) << 6;
     case step_d:
             do {
                 if (codechar == codeend)
                 {
                     state_in->step = step_d;
-                    state_in->plainchar = *plainchar;
-                    return plainchar - plaintext_out;
+                    state_in->result = *datachar;
+                    return datachar - data_out;
                 }
-                fragment = (char)cbase64__decode_value(*codechar++);
+                fragment = cbase64__decode_value(*codechar++);
             } while (fragment < 0);
-            *plainchar++   |= (fragment & 0x03f);
+            *datachar++   |= (fragment & 0x03f);
         }
     }
-    return plainchar - plaintext_out;
     // control should not reach here
+    return datachar - data_out;
 }
 
-int cbase64_encode_blockend(char* code_out, cbase64_encodestate* state_in)
+unsigned int cbase64_encode_blockend(char* code_out, cbase64_encodestate* state_in)
 {
     char* codechar = code_out;
     switch (state_in->step)
