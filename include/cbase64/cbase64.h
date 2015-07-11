@@ -163,6 +163,7 @@ unsigned int cbase64_decode_block(const char* code_in, unsigned int length_in,
     const char* const codeend = code_in + length_in;
     unsigned char* datachar = data_out;
     char fragment;
+    char overwrite;
     
     if (length_in == 0)
     {
@@ -184,7 +185,7 @@ unsigned int cbase64_decode_block(const char* code_in, unsigned int length_in,
                 }
                 fragment = cbase64__decode_value(*codechar++);
             } while (fragment < 0);
-            *datachar    = (fragment & 0x03f) << 2;
+            *datachar = (fragment & 0x03f) << 2;
     case step_B:
             do {
                 if (codechar == codeend)
@@ -196,30 +197,30 @@ unsigned int cbase64_decode_block(const char* code_in, unsigned int length_in,
                 fragment = cbase64__decode_value(*codechar++);
             } while (fragment < 0);
             *datachar++ |= (fragment & 0x030) >> 4;
-            *datachar    = (fragment & 0x00f) << 4;
+            overwrite    = (fragment & 0x00f) << 4;
     case step_C:
             do {
                 if (codechar == codeend)
                 {
                     state_in->step = step_C;
-                    state_in->result = *datachar;
+                    state_in->result = overwrite;
                     return datachar - data_out;
                 }
                 fragment = cbase64__decode_value(*codechar++);
             } while (fragment < 0);
-            *datachar++ |= (fragment & 0x03c) >> 2;
-            *datachar    = (fragment & 0x003) << 6;
+            *datachar++ = overwrite | (fragment & 0x03c) >> 2;
+            overwrite   = (fragment & 0x003) << 6;
     case step_D:
             do {
                 if (codechar == codeend)
                 {
                     state_in->step = step_D;
-                    state_in->result = *datachar;
+                    state_in->result = overwrite;
                     return datachar - data_out;
                 }
                 fragment = cbase64__decode_value(*codechar++);
             } while (fragment < 0);
-            *datachar++   |= (fragment & 0x03f);
+            *datachar++ = overwrite | (fragment & 0x03f);
         }
     }
     // control should not reach here
