@@ -164,6 +164,10 @@ unsigned int cbase64_decode_block(const char* code_in, unsigned int length_in,
     unsigned char* datachar = data_out;
     char fragment;
     
+    if (length_in == 0)
+    {
+        return 0;
+    }
     *datachar = state_in->result;
     
     switch (state_in->step)
