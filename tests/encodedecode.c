@@ -90,7 +90,7 @@ int EncodeDecodeTest(const char* string)
 
 int LengthEstimateTest()
 {
-    const unsigned int TEST_SIZE_MAX = 65535;
+    const unsigned int TEST_SIZE_MAX = 1 << 10;
     int ret = 0;
 
     const unsigned char* string = (const unsigned char*)malloc(TEST_SIZE_MAX);
@@ -118,6 +118,248 @@ int LengthEstimateTest()
     return ret;
 }
 
+int OverwriteTest()
+{
+    const unsigned int TEST_SIZE_MAX = 1 << 10;
+    int ret = 0;
+
+    for (unsigned int i = 0; i < TEST_SIZE_MAX; ++i)
+    {
+        unsigned char* decodedString = (unsigned char*)malloc(i + 4);
+        memset(decodedString + i, 0xfd, 4);
+
+        const unsigned int encodedLength = cbase64_calc_encoded_length(i);
+        char* encodedString = (char*)malloc(encodedLength);
+
+        {
+            char* encodeOut = encodedString;
+            cbase64_encodestate encodeState;
+            cbase64_init_encodestate(&encodeState);
+
+            encodeOut += cbase64_encode_block(decodedString, i, encodeOut, &encodeState);
+            encodeOut += cbase64_encode_blockend(encodeOut, &encodeState);
+        }
+        {
+            cbase64_decodestate decodeState;
+            cbase64_init_decodestate(&decodeState);
+            cbase64_decode_block(encodedString, encodedLength, decodedString, &decodeState);
+        }
+
+        if (*(decodedString + i + 0) != 0xfd ||
+            *(decodedString + i + 1) != 0xfd ||
+            *(decodedString + i + 2) != 0xfd ||
+            *(decodedString + i + 3) != 0xfd)
+        {
+            ret = -1;
+        }
+
+        free((void*)encodedString);
+        free((void*)decodedString);
+        
+        if (ret == -1)
+        {
+            break;
+        }
+    }
+    
+    return ret;
+}
+
+int DecodeEncodeTest()
+{
+    int ret = 0;
+
+    const char* encoded = "Awg=";
+    unsigned int encodedLength = 4;
+
+    unsigned char decoded[4];
+    unsigned int decodedlength;
+
+    char encoded2[5];
+    unsigned int encodedLength2;
+
+    {
+        cbase64_decodestate decodeState;
+        cbase64_init_decodestate(&decodeState);
+        decodedlength = cbase64_decode_block(encoded, encodedLength, decoded, &decodeState);
+    }
+    {
+        cbase64_encodestate encodeState;
+        cbase64_init_encodestate(&encodeState);
+
+        char* encodeOut = encoded2;
+        encodeOut += cbase64_encode_block(decoded, decodedlength, encodeOut, &encodeState);
+        encodeOut += cbase64_encode_blockend(encodeOut, &encodeState);
+        encodedLength2 = (encodeOut - encoded2);
+        encoded2[4] = '\0';
+    }
+    if (encodedLength != encodedLength2 || 0 != strcmp(encoded, encoded2))
+    {
+        ret = -1;
+    }
+    return ret;
+}
+
+int RFC4648Test()
+{
+    static const char* unencodedData[] =
+    {
+        "", "f", "fo", "foo", "foob", "fooba", "foobar"
+    };
+    static const char* encodedData[] =
+    {
+        "", "Zg==", "Zm8=", "Zm9v", "Zm9vYg==", "Zm9vYmE=", "Zm9vYmFy"
+    };
+
+    static const int numTests = sizeof(unencodedData) / sizeof(*unencodedData);
+
+    int ret = 0;
+    for (int i = 0; i < numTests; ++i)
+    {
+        const unsigned int unencodedLengthActual = strlen(unencodedData[i]);
+        const unsigned int encodedLengthActual = strlen(encodedData[i]);
+        const unsigned char* unencodedActual = (const unsigned char*)unencodedData[i];
+        const char* encodedActual = encodedData[i];
+
+        unsigned int unencodedLength;
+        unsigned int encodedLength;
+        unsigned char* unencoded = (unsigned char*)malloc(unencodedLengthActual);
+        char* encoded = (char*)malloc(encodedLengthActual);
+
+        {
+            cbase64_encodestate encodeState;
+            cbase64_init_encodestate(&encodeState);
+
+            char* encodeOut = encoded;
+            encodeOut += cbase64_encode_block(unencodedActual, unencodedLengthActual, encodeOut, &encodeState);
+            encodeOut += cbase64_encode_blockend(encodeOut, &encodeState);
+            encodedLength = (encodeOut - encoded);
+        }
+        {
+            cbase64_decodestate decodeState;
+            cbase64_init_decodestate(&decodeState);
+            unencodedLength = cbase64_decode_block(encoded, encodedLength, unencoded, &decodeState);
+        }
+        if (unencodedLength != unencodedLengthActual ||
+            encodedLength != encodedLengthActual ||
+            0 != memcmp(unencoded, unencodedActual, unencodedLengthActual) ||
+            0 != memcmp(encoded, encodedActual, encodedLengthActual))
+        {
+            ret = -1;
+        }
+        free(encoded);
+        free(unencoded);
+        if (ret != 0)
+        {
+            return ret;
+        }
+    }
+    return ret;
+}
+
+int BitEncDecTest()
+{
+    static const char* encodedData = "awuDm+OCY/sSCyO7C6Mrk/uCk3v7srtxEZuDA3BQzuTC4NDmuODYvsTCyO7C6MrkvuDk3r7sblzC0twAAA==";
+    static const int unencodedBits = 482;
+    static const int unencodedBytes = 61;
+    const int encodedBytes = strlen(encodedData);
+
+    unsigned char* unencodedData = (unsigned char*)malloc(unencodedBytes);
+    char* reencodedData = (char*)malloc(1 + encodedBytes);
+    int reencodedLength = 0;
+
+    {
+        cbase64_decodestate decodeState;
+        cbase64_init_decodestate(&decodeState);
+        cbase64_decode_block(encodedData, encodedBytes, unencodedData, &decodeState);
+    }
+    unencodedData[unencodedBytes - 1] &= ~(0xFF >> (unencodedBits & 7));
+    {
+        cbase64_encodestate encodeState;
+        cbase64_init_encodestate(&encodeState);
+
+        char* encodeOut = reencodedData;
+        encodeOut += cbase64_encode_block(unencodedData, unencodedBytes, encodeOut, &encodeState);
+        encodeOut += cbase64_encode_blockend(encodeOut, &encodeState);
+        reencodedLength = (encodeOut - reencodedData);
+        *encodeOut = '\0';
+    }
+    int ret = 0;
+    if (strcmp(reencodedData, encodedData))
+    {
+        ret = -1;
+    }
+
+    free(reencodedData);
+    free(unencodedData);
+    return ret;
+}
+
+int PartialTest()
+{
+    static const char* unencodedData[] =
+    {
+        "", "f", "fo", "foo", "foob", "fooba", "foobar"
+    };
+    static const char* encodedData[] =
+    {
+        "", "Zg==", "Zm8=", "Zm9v", "Zm9vYg==", "Zm9vYmE=", "Zm9vYmFy"
+    };
+
+    static const int numTests = sizeof(unencodedData) / sizeof(*unencodedData);
+
+    int ret = 0;
+    for (int i = 0; i < numTests; ++i)
+    {
+        const unsigned int unencodedLengthActual = strlen(unencodedData[i]);
+        const unsigned int encodedLengthActual = strlen(encodedData[i]);
+        const unsigned char* unencodedActual = (const unsigned char*)unencodedData[i];
+        const char* encodedActual = encodedData[i];
+
+        unsigned int unencodedLength = 0;
+        unsigned int encodedLength = 0;
+        unsigned char* unencoded = (unsigned char*)malloc(unencodedLengthActual);
+        char* encoded = (char*)malloc(encodedLengthActual);
+
+        {
+            cbase64_encodestate encodeState;
+            cbase64_init_encodestate(&encodeState);
+
+            char* encodeOut = encoded;
+            for (int j = 0; j < unencodedLengthActual; ++j)
+            {
+                encodeOut += cbase64_encode_block(unencodedActual + j, 1, encodeOut, &encodeState);
+            }
+            encodeOut += cbase64_encode_blockend(encodeOut, &encodeState);
+            encodedLength = (encodeOut - encoded);
+        }
+        {
+            cbase64_decodestate decodeState;
+            cbase64_init_decodestate(&decodeState);
+            char* unencodeOut = unencoded;
+            for (int j = 0; j < encodedLength; ++j)
+            {
+                unencodeOut += cbase64_decode_block(encoded + j, 1, unencodeOut, &decodeState);
+            }
+            unencodedLength = (unencodeOut - unencoded);
+        }
+        if (unencodedLength != unencodedLengthActual ||
+            encodedLength != encodedLengthActual ||
+            0 != memcmp(unencoded, unencodedActual, unencodedLengthActual) ||
+            0 != memcmp(encoded, encodedActual, encodedLengthActual))
+        {
+            ret = -1;
+        }
+        free(encoded);
+        free(unencoded);
+        if (ret != 0)
+        {
+            return ret;
+        }
+    }
+    return ret;
+}
+
 int main()
 {
     if (0 == EncodeDecodeTest(g_TestString))
@@ -135,6 +377,46 @@ int main()
     else
     {
         printf("LengthEstimateTest failed\n");
+    }
+    if (0 == OverwriteTest())
+    {
+        printf("OverwriteTest passed\n");
+    }
+    else
+    {
+        printf("OverwriteTest failed\n");
+    }
+    if (0 == DecodeEncodeTest())
+    {
+        printf("DecodeEncodeTest passed\n");
+    }
+    else
+    {
+        printf("DecodeEncodeTest failed\n");
+    }
+    if (0 == RFC4648Test())
+    {
+        printf("RFC4648Test passed\n");
+    }
+    else
+    {
+        printf("RFC4648Test failed\n");
+    }
+    if (0 == BitEncDecTest())
+    {
+        printf("BitEncDecTest passed\n");
+    }
+    else
+    {
+        printf("BitEncDecTest failed\n");
+    }
+    if (0 == PartialTest())
+    {
+        printf("PartialTest passed\n");
+    }
+    else
+    {
+        printf("PartialTest failed\n");
     }
     return 0;
 }

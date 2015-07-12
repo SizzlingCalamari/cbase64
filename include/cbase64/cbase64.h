@@ -163,13 +163,7 @@ unsigned int cbase64_decode_block(const char* code_in, unsigned int length_in,
     const char* const codeend = code_in + length_in;
     unsigned char* datachar = data_out;
     char fragment;
-    char overwrite;
-    
-    if (length_in == 0)
-    {
-        return 0;
-    }
-    *datachar = state_in->result;
+    char overwrite = state_in->result;
     
     switch (state_in->step)
     {
@@ -180,7 +174,7 @@ unsigned int cbase64_decode_block(const char* code_in, unsigned int length_in,
                 if (codechar == codeend)
                 {
                     state_in->step = step_A;
-                    state_in->result = *datachar;
+                    state_in->result = overwrite;
                     return datachar - data_out;
                 }
                 fragment = cbase64__decode_value(*codechar++);
@@ -191,7 +185,7 @@ unsigned int cbase64_decode_block(const char* code_in, unsigned int length_in,
                 if (codechar == codeend)
                 {
                     state_in->step = step_B;
-                    state_in->result = *datachar;
+                    state_in->result = overwrite;
                     return datachar - data_out;
                 }
                 fragment = cbase64__decode_value(*codechar++);
