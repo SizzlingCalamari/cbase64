@@ -114,7 +114,7 @@ unsigned int cbase64_encode_block(const unsigned char* data_in, unsigned int len
 
     switch (state_in->step)
     {
-        while (1)
+        for (;;)
         {
     case step_A:
             if (datachar == datatextend)
@@ -167,7 +167,7 @@ unsigned int cbase64_decode_block(const char* code_in, unsigned int length_in,
     
     switch (state_in->step)
     {
-        while (1)
+        for (;;)
         {
     case step_A:
             do {
