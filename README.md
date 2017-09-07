@@ -8,6 +8,11 @@ Forked from libb64-1.2.1.
 * Removed chars per line limit
 * Removed ending newline
 
+### Projects using cbase64
+* Demboyz - https://github.com/SizzlingStats/demboyz
+* Warframe TennoGen Tool - http://warframe.wikia.com/wiki/Warframe_TennoGen
+* HOOPS Communicator - http://techsoft3d.com/products/hoops-toolkits/hoops-communicator/
+
 ### Usage  
 ```
 #define CBASE64_IMPLEMENTATION
